@@ -1,0 +1,15 @@
+{
+  "name": "tauheed-kart",
+  "version": "1.0.0",
+  "description": "Tauheed Kart — dropshipping store. Node.js backend hosting the store and proxying to a Google Apps Script backend for order emails + storage.",
+  "main": "server.js",
+  "engines": {
+    "node": "18.x"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2"
+  }
+}
