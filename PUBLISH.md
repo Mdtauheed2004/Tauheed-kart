@@ -1,95 +1,96 @@
-# 🚀 Publish Tauheed Kart to the live web
+# Tauheed Kart — GitHub + Render Deploy (Exact Steps)
 
-You chose:
-- **Hosting:** Render (free Node.js server)
-- **Order notifications:** Google Apps Script → emails `occcrick@gmail.com` AND stores every order in a Google Sheet (so it also shows in your seller dashboard on any device).
-
-This guide has **two parts**. Do Part 1 (Google Apps Script) and Part 2 (Render). After both, your store is live at a public URL and every order sends you an email + appears in your dashboard.
+Ab aapka store ek **GitHub repo** mein ready hai. Bas neeche ke steps follow karo aur aapko
+**permanent 24x7 live URL** mil jayega. Aapke code mein sab kuch already configured hai.
 
 ---
 
-## Part 1 — Set up the Google Apps Script backend (email + storage)
+## 🔴 Aapka abhi ka live (temporary) URL
+> https://checks-vital-maybe-impressed.trycloudflare.com
 
-This is the "server brain." It receives orders, emails you, and saves everything to a Google Sheet.
-
-1. Go to **https://sheets.new** — this opens a brand‑new blank Google Sheet. Name it something like **TauheedKart** (top‑left).
-2. In the top menu click **Extensions → Apps Script**. Delete the default `Code.gs` content and **paste in the entire contents of the `apps-script.gs` file** that's in this folder.
-3. In the Apps Script editor, at the top dropdown select the function **`setup`** and click **▶ Run**. A window will ask for permission — click **Review permissions**, choose your (the same) Google account, and click **Allow**. This creates the "Orders" and "Products" tabs in your Sheet automatically.
-4. Click **Deploy → New deployment**. In the top‑right choose:
-   - **Type:** Web app
-   - **Description:** anything (e.g. "Tauheed Kart")
-   - **Execute as:** **Me** ✅
-   - **Who has access:** **Anyone** ✅ (so the public store can send orders)
-   - Click **Deploy**.
-5. Copy the **Web app URL** — it looks like:
-   `https://script.google.com/macros/s/XXXXXX/exec`
-6. **Save** that URL. You'll paste it into Render in Part 2.
-
-> 💡 If you ever change the script, use **Deploy → Manage deployments → Edit → New version** — don't create a whole new deployment (it changes the URL).
+Ye URL **is session ke saath band** ho jayega. Neeche wale steps se aapko **asli permanent URL** milega.
 
 ---
 
-## Part 2 — Deploy to Render (public URL)
+## STEP 1 — GitHub repo banao (2 minute)
 
-1. Create a **free account** at **https://render.com** (sign in with GitHub).
-2. Put this project folder (all files: `server.js`, `package.json`, `index.html`, `images/`, `apps-script.gs`, `README.md`) into a **GitHub repository** (a private repo is fine). If you need help, use GitHub Desktop or `git push`.
-3. On Render, go to **Dashboard → New → Web Service**.
-4. **Connect** your GitHub repo (grant access if asked).
-5. Fill in:
-   - **Name:** `tauheed-kart`
-   - **Region:** choose the closest (e.g. Singapore)
-   - **Root Directory:** leave blank (it's at the repo root)
-   - **Runtime / Environment:** Node
-   - **Build Command:** `npm install`
-   - **Start Command:** `node server.js`
-   - **Plan:** **Free** ✅
-6. **Important — add the secret:** click **Advanced** → **Add Environment Variable**:
-   - **Key:** `GOOGLE_APPS_SCRIPT_URL`
-   - **Value:** paste your **Web app URL** from Part 1 (the `/exec` one)
-   - (Optional) Add **Key:** `ADMIN_SECRET`, **Value:** your chosen password (default `Tauheed@2004`) — keep this matching `config.json.adminSecret` and the `SECRET` in `apps-script.gs`.
-   - **Key:** `ADMIN_PHONE`, **Value:** `918877357633` — the number every new order notification is sent to.
-
-> 🔔 **Every new order auto-notifies you (two automatic layers):**
-> 1. **Permanent record + email** — the server forwards the order to your Google Apps Script, which emails `occcrick@gmail.com` and writes it to the Google Sheet. Your seller dashboard syncs this list from the server (auto-refreshes every 20s), so it shows **every order on any device, permanently**.
-> 2. **Automatic WhatsApp/SMS to +91 918877357633** — the server fires a notification on each order. To actually deliver it, add ONE of these environment variables:
->    - **Meta WhatsApp Cloud API:** `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID`
->    - **or** any SMS/WhatsApp gateway webhook: `NOTIFY_WEBHOOK_URL`
->    (If you don't add a key, the site still works — the order is recorded permanently and emailed; the success page also gives the customer a one-tap button to send the order to your WhatsApp.)
-7. Click **Create Web Service**. Render will build and deploy (takes a couple of minutes).
-8. When ready, use the **URL** it gives you (something like `https://tauheed-kart.onrender.com`). **That's your live store.**
-
-> ⚠️ On the **free** plan, Render's server "sleeps" after ~15 minutes of inactivity, so the first load after a gap may take ~30–60 seconds to wake up. Your data is safe — it lives in the Google Sheet.
+1. [github.com](https://github.com) par **login** karo (free account).
+2. Upar **`+`** button → **New repository** → repo ka naam `tauheed-kart` → **Private** ya **Public** (dono chalega) → **Create repository**.
+3. Screen par jo repo URL dikhega usko copy karo (e.g. `https://github.com/USERNAME/tauheed-kart.git`).
 
 ---
 
-## How to receive orders
+## STEP 2 — Code ko GitHub par push karo
 
-Once both parts are live:
-- **Every checkout** POSTs the order to your server → which forwards it to your Google Apps Script → which:
-  1. **Emails you** at `occcrick@gmail.com` with the customer details, items, amount, and payment method.
-  2. **Appends the order** to the "Orders" tab in your Google Sheet.
-- **Your seller dashboard** (`⚙️` gear icon → admin password) fetches the order list from the server, so you see all real orders on **any device** — not just the one that placed them.
+Apne computer par terminal/Command Prompt kholo aur ye commands run karo
+(sirf `USERNAME` ki jagah apna GitHub username daalo):
 
-### Your live URLs
-- **Store (customers):** `https://your-app.onrender.com`
-- **Admin dashboard (you):** same URL → gear icon → your admin password
-
----
-
-## Local preview (no server needed)
-
-To preview/edit locally without deploying, run:
 ```bash
-cd tauheed-kart
-node server.js        # or: python3 -m http.server 8000
+cd path/to/tauheed-kart          # jisme index.html, server.js, render.yaml hain
+
+git remote add origin https://github.com/USERNAME/tauheed-kart.git
+git branch -M main
+git push -u origin main
 ```
-Open `http://localhost:3000`. Without Apps Script configured it runs in **demo/local mode** (data stays in your browser's localStorage) — perfect for testing the look and flows.
+
+> 📝 **Password/token:** GitHub ab normal password se push nahi hota. Push karte samay
+> password ki jagah aapka **Personal Access Token** use hoga:
+> GitHub → Settings → Developer settings → Personal access tokens → **Generate new token**
+> (repo scope `repo`. "Select scopes" mein `repo` tick karo). Wo token copy karo aur push mein use karo.
+
+> ✅ Ye code folder maine pehle se **git commit** kar diya hai aur **config.json (password) +
+> store.json (data)** git mein nahi gae hain. Isliye koi secret leak nahi hoga.
+
+Push hone ke baad browser mein apni GitHub repo kholo — `index.html`, `server.js`, `render.yaml`
+wahan dikhne chahiye.
 
 ---
 
-## Important notes & limits
+## STEP 3 — Render par deploy (2 minute)
 
-- **UPI payment is manual** (the standard for a small dropshipping store): the customer pays `8877357633@ybl` via any UPI app, then confirms. Real payment-gateway integration (Razorpay/Instamojo) is a separate step if you want automated payment verification.
-- **Order emails** use your Gmail (the account that ran the Apps Script). You can change `ADMIN_EMAIL` at the top of `apps-script.gs` to forward elsewhere.
-- **Images you upload** in the admin panel are stored as base64 in the browser/Sheet. For a live catalog shared across all customers, prefer **hosted image URLs** (e.g. paste an `https://...` link) so everyone sees them.
-- **Free-tier render** sleeps when idle; a paid instance removes that.
+1. [render.com](https://render.com) par **free account** banao (GitHub login se).
+2. Dashboard par **New +** → **Blueprint** → apna `tauheed-kart` repo **select** karo.
+3. Render `render.yaml` ko detect karega aur khud build + deploy karega.
+4. ~2–3 minute mein aapko mil jayega **permanent URL**, e.g.:
+   > `https://tauheed-kart.onrender.com`
+5. Wahi URL kisi bhi phone/laptop par kholo — store dikhega. Beta milestone: **24x7 online**, koi phir bhi block na kare.
+
+---
+
+## STEP 4 (Optional but RECOMMENDED) — Permanent data (Sheets backend)
+
+Render free tier ka data **restart par reset** ho sakta hai (filesystem ephemeral). **Really durable**
+data ke liye Google Apps Script backend (Google Sheet) connect karo — ye 3 minute ka setup hai aur
+products/orders hamesha ke liye save rahenge:
+
+*(Pure steps `apps-script.gs` file ke top comment mein already likhe hain. Short version:)*
+
+1. [sheets.new](https://sheets.new) → naya sheet banao (naam: `TauheedKart`).
+2. **Extensions → Apps Script** → default code hatao → `apps-script.gs` ka poora content paste karo.
+3. Toolbar mein `setup` function select karke **Run** karo (permission Approve karo).
+4. **Deploy → New deployment → Web app**:
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+   - **Deploy** → Web app URL copy karo (ends with `/exec`).
+5. Wo URL Render ke env var **`GOOGLE_APPS_SCRIPT_URL`** mein daalo (Render → Service → Environment)
+   → save → Render **redeploy** karne do.
+
+Ab orders + products **Google Sheet** mein permanent save honge, aur har naye order par
+aapko **occcrick@gmail.com** par email bhi aayega.
+
+---
+
+## 🛡️ Security (already set)
+- Admin password `Tauheed@2004` **server-side** hai; koi browser/git mein nahi.
+- Render env var `ADMIN_SECRET` se set hota hai. `config.json` + `store.json` git mein nahi hain.
+
+## ✅ Verify (bas check karo)
+Deploy ke baad: `https://YOUR-URL/healthz` → `{"ok":true,"backend":true/false}`
+Admin login → product add karo → phone/incognito mein `https://YOUR-URL/` kholo → naya product dikhna chahiye.
+
+---
+
+## Files jo deploy hui (git commit)
+`index.html`, `server.js`, `render.yaml`, `package.json`, `apps-script.gs`, `images/`, `.gitignore`
+
+> Agar koi step par atak jao, mujhe batao — main help kar dunga.
