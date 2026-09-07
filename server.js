@@ -147,6 +147,30 @@ async function appsScriptGet(query) {
   try { return JSON.parse(text); } catch (e) { return { ok: false, error: text.slice(0, 120) }; }
 }
 
+// ---- LIVE PUSH (Server-Sent Events) ----
+// Every connected client opens /api/events. When the catalog or orders change,
+// we broadcast a signal so ALL devices re-sync immediately (no 30s wait).
+const sseClients = new Set();
+function sseSend(type, data){
+  const payload = 'event: ' + type + '\ndata: ' + JSON.stringify(data || {}) + '\n\n';
+  for (const res of sseClients){ try { res.write(payload); } catch (e) { sseClients.delete(res); } }
+}
+function broadcastCatalog(){ sseSend('catalog', { rev: catalogRev }); }
+function broadcastOrders(){ sseSend('orders', {}); }
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  sseClients.add(res);
+  // Initial hello so the client knows the stream is open.
+  res.write('event: hi\ndata: {"ok":true}\n\n');
+  const clean = () => { res.end(); sseClients.delete(res); };
+  res.on('close', clean);
+  res.on('error', clean);
+});
+
 // ---- API: config ----
 app.get('/api/config', (req, res) => {
   res.json({ backend: !!APPS_SCRIPT_URL });
@@ -181,13 +205,14 @@ app.post('/api/products', async (req, res) => {
   if (APPS_SCRIPT_URL) {
     try {
       const r = await appsScriptCall({ action: 'product', product: p });
-      if (r && r.ok) { catalogRev++; return res.json({ ok: true, rev: catalogRev }); }
+      if (r && r.ok) { catalogRev++; saveStore(); broadcastCatalog(); return res.json({ ok: true, rev: catalogRev }); }
     } catch (e) {}
   }
   const i = memProducts.findIndex(x => x.id === p.id);
   if (i > -1) memProducts[i] = p; else memProducts.unshift(p);
   catalogRev++;
   saveStore();
+  broadcastCatalog();
   res.json({ ok: true, rev: catalogRev });
 });
 
@@ -196,12 +221,13 @@ app.delete('/api/products/:id', async (req, res) => {
   if (APPS_SCRIPT_URL) {
     try {
       const r = await appsScriptCall({ action: 'deleteProduct', productId: id });
-      if (r && r.ok) { catalogRev++; return res.json({ ok: true, rev: catalogRev }); }
+      if (r && r.ok) { catalogRev++; saveStore(); broadcastCatalog(); return res.json({ ok: true, rev: catalogRev }); }
     } catch (e) {}
   }
   memProducts = memProducts.filter(x => x.id !== id);
   catalogRev++;
   saveStore();
+  broadcastCatalog();
   res.json({ ok: true, rev: catalogRev });
 });
 
@@ -215,7 +241,7 @@ app.post('/api/orders', async (req, res) => {
     try {
       const r = await appsScriptCall({ action: 'order', order });
       // avoid duplicate local store when Apps Script is the source of truth
-      if (r && r.ok) return res.json({ ok: true, id: order.id, emailed: true });
+      if (r && r.ok) { broadcastOrders(); return res.json({ ok: true, id: order.id, emailed: true }); }
     } catch (e) {}
   }
   // Dedupe: allow offline clients to retry an order without creating duplicates.
@@ -223,6 +249,7 @@ app.post('/api/orders', async (req, res) => {
   if (dupIndex > -1) memOrders.splice(dupIndex, 1);
   memOrders.unshift(order);
   saveStore();
+  broadcastOrders();
   res.json({ ok: true, id: order.id, emailed: false });
 });
 

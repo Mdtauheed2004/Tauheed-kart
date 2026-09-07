@@ -481,11 +481,33 @@ window.addEventListener("storage",e=>{
   if(e.key==="tk_products"||e.key===SYNC_KEY){clearTimeout(_cbcTimer);_cbcTimer=setTimeout(onCatalogExternal,30);}
 });
 try{_cbc=new BroadcastChannel("tk_catalog");_cbc.onmessage=()=>onCatalogExternal();}catch(e){}
+/* ---------- LIVE PUSH (Server-Sent Events) — cross-device instant updates ----------
+   Server broadcasts 'catalog' or 'orders' events the moment they change, so every
+   open tab/device re-syncs immediately without waiting for the 30s poll. */
+let _sse=null,_sseRetry=null;
+function startLiveEvents(){
+  if(_sse){try{_sse.close();}catch(e){}_sse=null;}
+  try{
+    _sse=new EventSource('/api/events');
+    _sse.addEventListener('catalog',()=>{syncCatalog().catch(()=>{});});
+    _sse.addEventListener('orders',()=>{
+      // A new/updated order arrived. If we're admin, re-pull so dashboard + bell update.
+      const t=sessionStorage.getItem('tk_admin_token');
+      if(t){pullAdminOrders(t,true);}
+    });
+    _sse.onerror=()=>{ // auto-reconnect with backoff
+      try{_sse.close();}catch(e){}
+      clearTimeout(_sseRetry);
+      _sseRetry=setTimeout(startLiveEvents,3000);
+    };
+  }catch(e){}
+}
 
 async function bootstrap(){
   await syncTick();
   updateBell();updateCartCount();go('home');updateAuthUI();
   handleHash();
+  startLiveEvents();
 }
 /* Deep-link: a shared product URL (#product=id) opens that product's modal. */
 function handleHash(){const m=location.hash.match(/product=([^&]+)/);if(m){const id=decodeURIComponent(m[1]);if(productOf(id))openProduct(id);}}
