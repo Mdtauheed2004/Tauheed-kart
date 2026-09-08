@@ -1,5 +1,14 @@
 # Tauheed Kart — Google Sheets Backend (Permanent Data)
 
+> ✅ **STATUS UPDATE:** Aapka Apps Script URL **tested & working** hai aur `Products` sheet
+> **already 8 products se seeded** hai. Apps Script ke read / write / delete — teeno verified.
+> Ab bas **Step 2 (Render env var)** connect karna baaki hai — neeche dekho.
+
+> 🔗 **Aapka Apps Script URL:**
+> `https://script.google.com/macros/s/AKfycbxfM3ivE3GacLpzCx7oY8vNJgB11RltR8_eB4Ww7giVywCZHPhggOtNpNQXsZv7GXnq/exec`
+
+> ⚠️ **Note:** `setup()` ab nahi chalana — sheet already full hai. Khan hoga to seed nahi hoga.
+
 ## Problem jo aapne dekhi (bilkul sahi)
 > "Render par restart hota hai tab product remove ho jaata hai."
 
@@ -38,10 +47,17 @@ Aapka **server.php already ready** hai — bas ek baar Google Sheet deploy aur U
 
 ## ✅ Step 2 — URL ko server se connect karo
 
-**Option A** — Render ke **Environment** mein env var daalo:
+**Option A** — Render ke **Environment** mein env var daalo (yehi aapka asli step hai):
 1. Render → apna service → **Environment** tab.
-2. Naya env var: key = `GOOGLE_APPS_SCRIPT_URL`, value = us `/exec` URL ko.
+2. Naya env var: key = `GOOGLE_APPS_SCRIPT_URL`, value = ye URL:
+   ```
+   https://script.google.com/macros/s/AKfycbxfM3ivE3GacLpzCx7oY8vNJgB11RltR8_eB4Ww7giVywCZHPhggOtNpNQXsZv7GXnq/exec
+   ```
 3. **Save** → Render **redeploy** karne do (~1 min).
+
+**Confirm:** Render ke URL ke aage `/healthz` kholo → `{"ok":true,"backend":true}` aana chahiye.
+- `backend:true` = ✅ sheet connected, data ab **permanent** hai
+- `backend:false` = ❌ env var nahi laga (space/typo/quote check karo)
 
 **Option B** — Agar local/server mein: `config.json` mein `appsScriptUrl` bharo:
 ```json
