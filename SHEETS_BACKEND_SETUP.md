@@ -9,6 +9,16 @@
 
 > ⚠️ **Note:** `setup()` ab nahi chalana — sheet already full hai. Khan hoga to seed nahi hoga.
 
+> 🔧 **Server ab out-of-the-box connect hota hai:** `server.js` mein ab Apps Script URL ka
+> **hardcoded fallback** hai (kyunki `config.json` git-ignored hai aur Render deploy nahi hota).
+> Matlab **bina env var daale bhi** Render par `backend:true` ho jaayega — bas ek naya deploy karo.
+> Env var `GOOGLE_APPS_SCRIPT_URL` (agr set karo) sabse upar priority rakhta hai.
+
+> 🔄 **Render free tier instance sleep hota hai:** inactivity par instance spin-down ho jaata hai,
+> jisse URL `404 no-server` deta hai aur pehli request tak aata nahi. Iska matlab:
+> - Browser mein URL kholo → Render "spinning up" dikhayega (~50s) phir site khulegi.
+> - **Tip:** "Upgrade now" (paid) karo to instance kabhi sleep nahi hoga — 24x7 live.
+
 ## Problem jo aapne dekhi (bilkul sahi)
 > "Render par restart hota hai tab product remove ho jaata hai."
 
