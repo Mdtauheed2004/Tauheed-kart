@@ -16,7 +16,12 @@ const PORT = process.env.PORT || 3000;
 const configPath = path.join(__dirname, 'config.json');
 let config = {};
 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch (e) { config = {}; }
-const APPS_SCRIPT_URL = (process.env.GOOGLE_APPS_SCRIPT_URL || config.appsScriptUrl || '').trim();
+// Public Apps Script endpoint. Priority: env var > config.json > hardcoded default.
+// The default keeps the store connected to Google Sheets out-of-the-box on Render
+// (config.json is git-ignored and not deployed), so admin products are ALWAYS
+// persisted even if the env var is never set. Set GOOGLE_APPS_SCRIPT_URL to override.
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxfM3ivE3GacLpzCx7oY8vNJgB11RltR8_eB4Ww7giVywCZHPhggOtNpNQXsZv7GXnq/exec';
+const APPS_SCRIPT_URL = (process.env.GOOGLE_APPS_SCRIPT_URL || config.appsScriptUrl || DEFAULT_APPS_SCRIPT_URL || '').trim();
 const ADMIN_SECRET = process.env.ADMIN_SECRET || config.adminSecret || 'Tauheed@2004';
 
 // ---- Admin notification settings (auto-notify owner on EVERY order) ----
