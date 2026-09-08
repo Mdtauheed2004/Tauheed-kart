@@ -349,6 +349,13 @@ const DEFAULT_PRODUCTS=[
 const load=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?f():v;}catch(e){return f();}};
 function saveProducts(p){localStorage.setItem("tk_products",JSON.stringify(p));}
 function getProducts(){return load("tk_products",()=>DEFAULT_PRODUCTS);}
+/* Track products this device created or edited that haven't been confirmed on the
+   server yet. syncCatalog() merges them back in (instead of overwriting), so an
+   admin-added product is NEVER lost just because the network/server hiccuped. */
+function getPendingProds(){try{return JSON.parse(localStorage.getItem("tk_pending_prods")||"[]");}catch(e){return [];}}
+function savePendingProds(a){localStorage.setItem("tk_pending_prods",JSON.stringify(a));}
+function addPendingProds(id){const a=getPendingProds();if(a.indexOf(id)<0)a.push(id);savePendingProds(a);}
+function delPendingProds(id){savePendingProds(getPendingProds().filter(x=>x!==id));}
 function getCart(){return load("tk_cart",()=>[]);}
 function saveCart(c){localStorage.setItem("tk_cart",JSON.stringify(c));try{broadcastCart();}catch(e){}}
 function getOrders(){return load("tk_orders",()=>[]);}
@@ -420,11 +427,20 @@ async function syncCatalog(){
   const rev=res.rev||0;
   const prev=parseInt(localStorage.getItem(SYNC_KEY)||'0',10);
   const sameHash=catHash(products)===catHash(res.products);
-  if(prev===rev && sameHash)return;   // nothing changed
-  const hadLocal=products.length>0;
-  products=res.products;
+  if(prev===rev && sameHash){syncProductsMaybe();return;}   // nothing changed
+  // MERGE: keep the server catalog as the base, but RE-ADD any product this
+  // device added/edited that hasn't reached the server yet (pending). This
+  // guarantees an admin-added product is never wiped by a sync.
+  const pending=getPendingProds();
+  const serverById={};res.products.forEach(p=>{serverById[p.id]=p;});
+  const keepLocal=products.filter(p=>pending.indexOf(p.id)>-1&&!serverById[p.id]);
+  const merged=res.products.slice();
+  keepLocal.forEach(p=>{if(!serverById[p.id])merged.unshift(p);});
+  products=merged;
   saveProducts(products);
   localStorage.setItem(SYNC_KEY,String(rev));
+  // Re-push any still-unconfirmed products so they land on the server.
+  syncProductsMaybe();
   // Keep the cart valid against the freshly-synced catalog:
   // drop items that no longer exist and clamp quantities to available stock.
   reconcileCart();saveCart(cart);updateCartCount();renderCart();
@@ -470,8 +486,26 @@ window.addEventListener("storage",e=>{
 });
 try{_obc=new BroadcastChannel("tk_orders");_obc.onmessage=()=>onOrderExternal();}catch(e){}
 // Everything the app runs on a timer and at key moments.
+/* Push any product this device created/edited but the server hasn't confirmed yet.
+   Called from syncCatalog (after a pull) and from the periodic syncTick, so a
+   product added while offline is uploaded the moment the network is back. */
+async function syncProductsMaybe(){
+  const pending=getPendingProds();
+  if(!pending.length)return;
+  for(const id of pending){
+    const p=products.find(x=>x.id===id);
+    if(!p)continue;
+    try{
+      const saved=await API.post('/api/products',Object.assign({},p,{id:id}));
+      if(saved&&saved.ok){delPendingProds(id);}
+    }catch(e){}
+  }
+  const still=getPendingProds();
+  if(still.length)localStorage.setItem(SYNC_KEY,String(parseInt(localStorage.getItem(SYNC_KEY)||'0',10)+1));
+}
 async function syncTick(){
   await Promise.all([syncCatalog().catch(()=>{}),syncOrders().catch(()=>{})]);
+  syncProductsMaybe();
   updateLastSync();
 }
 function updateLastSync(){const el=document.getElementById("lastSyncLabel");if(!el)return;el.textContent="Last sync "+new Date().toLocaleTimeString();}
@@ -807,10 +841,10 @@ function saveOrderTracking(id){const o=orders.find(x=>x.id===id);if(!o)return;co
 function ts(n){return n<=0?'<span class="pill off">Out of stock</span>':n<=5?'<span class="pill low">'+n+' left</span>':'<span class="pill ok">'+n+' in stock</span>';}
 function renderProducts(){document.getElementById("catCount").textContent="("+products.length+" products)";document.getElementById("adminList").innerHTML=products.map(p=>'<div class="prod-row"><div class="im">'+imgHTML(p)+'</div><div class="inf"><div class="nm">'+esc(p.name)+'</div><div class="mt">'+esc(p.cat)+' • '+fmt(p.price)+' (MRP '+fmt(p.mrp)+') • '+ts(p.stock)+' • '+(p.featured?"⭐ Featured":"")+'</div></div><div class="ops"><button class="edit" title="Edit" onclick="editProduct(\''+p.id+'\')">✏️</button><button class="del" title="Delete" onclick="delProduct(\''+p.id+'\')">🗑️</button></div></div>').join("")||'<p class="muted" style="padding:14px">No products. Add your first above.</p>';}
 function catIcon(){document.getElementById("p-emoji").value=CATICON[document.getElementById("p-cat").value]||"📦";}
-async function saveProduct(){const name=document.getElementById("p-name").value.trim();const price=parseFloat(document.getElementById("p-price").value);const mrp=parseFloat(document.getElementById("p-mrp").value)||0;const stock=parseInt(document.getElementById("p-stock").value)||0;if(!name){toast("Enter a product name","warn");return;}if(!price||price<=0){toast("Enter a valid selling price","warn");return;}const id=document.getElementById("p-id").value;let rating=parseFloat(document.getElementById("p-rating").value)||4.5;rating=Math.max(0,Math.min(5,rating));let reviews=parseInt(document.getElementById("p-reviews").value)||0;reviews=Math.max(0,reviews);const data={name,cat:document.getElementById("p-cat").value,price,mrp:mrp>price?mrp:price,emoji:document.getElementById("p-emoji").value||"📦",stock,image:formImgs[0]||"",images:formImgs.slice(),desc:document.getElementById("p-desc").value.trim(),rating,reviews,featured:document.getElementById("p-featured").checked};let savedId;if(id){const i=products.findIndex(p=>p.id===id);if(i>-1){products[i]=Object.assign({},products[i],data);savedId=id;toast("Product updated ✓");}}else{const pid="p"+Date.now();const np=Object.assign({id:pid,rating,reviews},data);products.unshift(np);savedId=pid;data.id=pid;toast("Product added ✓");}saveProducts(products);resetForm();renderProducts();renderHome();if(!document.getElementById("view-shop").classList.contains("hidden"))renderShop();const saved=await API.post('/api/products',Object.assign({id:savedId},data));localStorage.setItem(SYNC_KEY,String((saved&&saved.rev)||(parseInt(localStorage.getItem(SYNC_KEY)||'0',10)+1)));await syncCatalog();broadcastCatalog();}
+async function saveProduct(){const name=document.getElementById("p-name").value.trim();const price=parseFloat(document.getElementById("p-price").value);const mrp=parseFloat(document.getElementById("p-mrp").value)||0;const stock=parseInt(document.getElementById("p-stock").value)||0;if(!name){toast("Enter a product name","warn");return;}if(!price||price<=0){toast("Enter a valid selling price","warn");return;}const id=document.getElementById("p-id").value;let rating=parseFloat(document.getElementById("p-rating").value)||4.5;rating=Math.max(0,Math.min(5,rating));let reviews=parseInt(document.getElementById("p-reviews").value)||0;reviews=Math.max(0,reviews);const data={name,cat:document.getElementById("p-cat").value,price,mrp:mrp>price?mrp:price,emoji:document.getElementById("p-emoji").value||"📦",stock,image:formImgs[0]||"",images:formImgs.slice(),desc:document.getElementById("p-desc").value.trim(),rating,reviews,featured:document.getElementById("p-featured").checked};let savedId;if(id){const i=products.findIndex(p=>p.id===id);if(i>-1){products[i]=Object.assign({},products[i],data);savedId=id;toast("Product updated ✓");}}else{const pid="p"+Date.now();const np=Object.assign({id:pid,rating,reviews},data);products.unshift(np);savedId=pid;data.id=pid;toast("Product added ✓");}saveProducts(products);resetForm();renderProducts();renderHome();if(!document.getElementById("view-shop").classList.contains("hidden"))renderShop();addPendingProds(savedId);saveProducts(products);const saved=await API.post('/api/products',Object.assign({id:savedId},data));if(saved&&saved.ok){delPendingProds(savedId);}localStorage.setItem(SYNC_KEY,String((saved&&saved.rev)||(parseInt(localStorage.getItem(SYNC_KEY)||'0',10)+1)));syncProductsMaybe();await syncCatalog();broadcastCatalog();}
 function editProduct(id){const p=productOf(id);if(!p)return;document.getElementById("p-id").value=p.id;document.getElementById("p-name").value=p.name;document.getElementById("p-cat").value=p.cat;document.getElementById("p-price").value=p.price;document.getElementById("p-mrp").value=p.mrp;document.getElementById("p-emoji").value=p.emoji;document.getElementById("p-stock").value=p.stock;document.getElementById("p-rating").value=p.rating!=null?p.rating:4.5;document.getElementById("p-reviews").value=p.reviews!=null?p.reviews:0;document.getElementById("p-desc").value=p.desc||"";document.getElementById("p-featured").checked=!!p.featured;document.getElementById("formTitle").textContent="✏️ Edit Product";formImgs=getImages(p).slice();renderImgGallery();syncImages();document.getElementById("p-img-url").classList.add("hidden");document.getElementById("cancelEdit").classList.remove("hidden");window.scrollTo({top:0,behavior:"smooth"});}
 function resetForm(){document.getElementById("p-id").value="";document.getElementById("p-name").value="";document.getElementById("p-price").value="";document.getElementById("p-mrp").value="";document.getElementById("p-emoji").value="📦";document.getElementById("p-stock").value="10";document.getElementById("p-rating").value="4.5";document.getElementById("p-reviews").value="0";formImgs=[];document.getElementById("p-desc").value="";document.getElementById("p-featured").checked=false;document.getElementById("formTitle").textContent="➕ Add New Product";document.getElementById("cancelEdit").classList.add("hidden");renderImgGallery();syncImages();document.getElementById("p-img-url").classList.add("hidden");}
-async function delProduct(id){if(!confirm("Delete this product?"))return;products=products.filter(p=>p.id!==id);cart=cart.filter(c=>c.id!==id);saveAll();renderProducts();renderHome();if(!document.getElementById("view-shop").classList.contains("hidden"))renderShop();await API.del('/api/products/'+id);await syncCatalog();broadcastCatalog();toast("Product deleted");}
+async function delProduct(id){if(!confirm("Delete this product?"))return;products=products.filter(p=>p.id!==id);cart=cart.filter(c=>c.id!==id);saveAll();renderProducts();renderHome();if(!document.getElementById("view-shop").classList.contains("hidden"))renderShop();delPendingProds(id);await API.del('/api/products/'+id);await syncCatalog();broadcastCatalog();toast("Product deleted");}
 function resetDemo(){if(!confirm("Reset all products, orders & notifications to demo data?"))return;localStorage.removeItem("tk_products");localStorage.removeItem("tk_cart");localStorage.removeItem("tk_orders");localStorage.removeItem("tk_wish");localStorage.removeItem("tk_notifs");products=getProducts();cart=[];orders=[];wish=[];notifs=[];saveAll();updateCartCount();renderAdmin();renderHome();toast("Demo data restored");}
 
 /* ---------- LEGAL ---------- */
