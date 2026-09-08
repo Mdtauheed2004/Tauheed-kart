@@ -25,13 +25,36 @@ const SECRET = 'Tauheed@2004';               // must match server ADMIN_SECRET
 const ORDERS_HEADERS  = ['id','date','customer_name','customer_phone','customer_email','customer_address','customer_city','customer_state','customer_pincode','items','subtotal','shipping','upi_discount','total','payment','status'];
 const PRODUCTS_HEADERS = ['id','name','cat','price','mrp','emoji','stock','rating','reviews','featured','image','images','desc'];
 
-/** Run once to create the Orders & Products sheets with headers. */
+// If the Products sheet is empty, these are seeded so the store is never blank.
+const DEFAULT_PRODUCTS = [
+  {id:'p1',name:'Wireless Bluetooth Earbuds with Charging Case',cat:'Electronics',price:1299,mrp:2999,emoji:'🎧',stock:12,rating:4.6,reviews:412,featured:true,image:'images/p1-earbuds.png',images:['images/p1-earbuds.png'],desc:'Crystal-clear sound, deep bass, touch controls, BT 5.3 and a pocket charging case with 24h playback.'},
+  {id:'p2',name:'Smart Fitness Watch — Heart Rate & Steps',cat:'Electronics',price:1999,mrp:4499,emoji:'⌚',stock:9,rating:4.7,reviews:830,featured:true,image:'images/p2-smartwatch.png',images:['images/p2-smartwatch.png'],desc:'AMOLED display, heart-rate, SpO2 and sleep tracking, 120+ sport modes, calls & messages on wrist, 7-day battery life.'},
+  {id:'p3',name:'Premium Running Sneakers — Lightweight',cat:'Fashion',price:1499,mrp:2999,emoji:'👟',stock:15,rating:4.6,reviews:520,featured:true,image:'images/p3-sneakers.png',images:['images/p3-sneakers.png'],desc:'Breathable mesh upper, cushioned sole, perfect for running, gym and daily wear. Trendy design, ultra comfortable.'},
+  {id:'p4',name:'Urban Laptop Backpack — 15.6 inch Waterproof',cat:'Accessories',price:899,mrp:1899,emoji:'🎒',stock:18,rating:4.5,reviews:310,featured:true,image:'images/p4-backpack.png',images:['images/p4-backpack.png'],desc:'Padded 15.6" laptop sleeve, anti-theft pocket, USB port, water-resistant fabric. Perfect for college, work & travel.'},
+  {id:'p5',name:'Insulated Steel Water Bottle 1L',cat:'Home & Kitchen',price:599,mrp:1199,emoji:'🥤',stock:22,rating:4.5,reviews:268,featured:false,image:'images/p5-bottle.png',images:['images/p5-bottle.png'],desc:'Double-wall vacuum insulated, keeps drinks cold 24h / hot 12h. Leak-proof, BPA-free, ideal for gym & travel.'},
+  {id:'p6',name:'Smart LED Strip Light — Music Sync RGB',cat:'Home & Kitchen',price:499,mrp:899,emoji:'✨',stock:25,rating:4.6,reviews:720,featured:false,image:'images/p6-led.png',images:['images/p6-led.png'],desc:'16 million colors, app + remote control, music-sync mode, easy peel-and-stick installation. Transform any room.'},
+  {id:'p7',name:'Car Phone Holder — Magnetic Dashboard Mount',cat:'Accessories',price:399,mrp:899,emoji:'🚗',stock:40,rating:4.4,reviews:195,featured:false,image:'images/p7-phoneholder.png',images:['images/p7-phoneholder.png'],desc:'360° rotation, strong magnetic mount, one-hand use. Fits all phones, safe for dashboard & windscreen.'},
+  {id:'p8',name:'Unisex Classic Denim Jacket',cat:'Fashion',price:1199,mrp:2499,emoji:'🧥',stock:8,rating:4.5,reviews:150,featured:false,image:'images/p8-denim.png',images:['images/p8-denim.png'],desc:'High-quality soft denim, timeless fit, stylish wash. Available in multiple sizes — a wardrobe essential.'}
+];
+
+/** Run once to create the Orders & Products sheets with headers + seed default products. */
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSheet(ss, 'Orders', ORDERS_HEADERS);
-  ensureSheet(ss, 'Products', PRODUCTS_HEADERS);
+  const ps = ensureSheet(ss, 'Products', PRODUCTS_HEADERS);
+  if (ps.getLastRow() < 2) {
+    DEFAULT_PRODUCTS.forEach(p => handleProduct(p));
+  }
   Utilities.sleep(300);
   return 'Sheets ready. Now Deploy > New deployment > Web app.';
+}
+
+// Re-run if you ever need to restore the default product catalog.
+function seedProducts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ps = ensureSheet(ss, 'Products', PRODUCTS_HEADERS);
+  DEFAULT_PRODUCTS.forEach(p => handleProduct(p));
+  return 'Seeded ' + DEFAULT_PRODUCTS.length + ' products.';
 }
 
 function ensureSheet(ss, name, headers) {
