@@ -113,6 +113,9 @@ const storeDir = process.env.DATA_DIR || __dirname;
 const storePath = path.join(storeDir, 'store.json');
 let memProducts = DEFAULT_PRODUCTS.map(p => ({ ...p }));
 let memOrders = [];
+// Products that were deleted via this server (tombstones). Persisted so a delete
+// is never undone by the local/sheet merge below (which would otherwise resurrect it).
+let deletedIds = [];
 // Catalog revision: bumped on every product add/edit/delete so clients can cheaply detect changes.
 let catalogRev = 1;
 function loadStore(){
@@ -120,13 +123,14 @@ function loadStore(){
     const d = JSON.parse(fs.readFileSync(storePath, 'utf8'));
     if (Array.isArray(d.products)) memProducts = d.products;
     if (Array.isArray(d.orders)) memOrders = d.orders;
+    if (Array.isArray(d.deletedIds)) deletedIds = d.deletedIds;
     if (d.catalogRev) catalogRev = d.catalogRev;
   } catch (e) {}
 }
 function saveStore(){
   try {
     fs.mkdirSync(storeDir, { recursive: true });
-    fs.writeFileSync(storePath, JSON.stringify({ products: memProducts, orders: memOrders, catalogRev }));
+    fs.writeFileSync(storePath, JSON.stringify({ products: memProducts, orders: memOrders, deletedIds, catalogRev }));
   } catch (e) {}
 }
 loadStore();
@@ -193,7 +197,21 @@ app.get('/api/products', async (req, res) => {
   if (APPS_SCRIPT_URL) {
     try {
       const r = await appsScriptGet('action=products');
-      if (r && r.products) { products = r.products; source = 'gapps'; }
+      if (r && Array.isArray(r.products)) {
+        // Apps Script is the cross-device source of truth, but we NEVER drop a
+        // product that this server already saved in store.json yet hasn't reached
+        // the sheet (e.g. the sheet write lagged or failed). We merge them in by
+        // id, so an admin-added product ALWAYS survives a refresh.
+        const sheetIds = new Set(r.products.map(p => String(p.id)));
+        const gone = new Set((deletedIds || []).map(x => String(x)));
+        // Keep ONLY local products that (a) aren't already in the sheet and
+        // (b) weren't deliberately deleted. Prevents both the "lost on refresh"
+        // bug and any "resurrect after delete" bug.
+        const localOnly = (memProducts || []).filter(p => !sheetIds.has(String(p.id)) && !gone.has(String(p.id)));
+        products = r.products.slice();
+        localOnly.forEach(p => products.unshift(p));
+        source = 'gapps';
+      }
     } catch (e) {}
   }
   res.json({ products, source, rev: catalogRev });
@@ -202,29 +220,35 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/products', async (req, res) => {
   const p = req.body;
   if (!p || !p.id) return res.status(400).json({ ok: false, error: 'bad product' });
+  // ALWAYS update the local mirror first so store.json is never out of date
+  // (this is what the GET merge relies on to keep a just-added product alive).
+  const i = memProducts.findIndex(x => x.id === p.id);
+  if (i > -1) memProducts[i] = p; else memProducts.unshift(p);
+  deletedIds = (deletedIds || []).filter(x => String(x) !== String(p.id));
+  let sheetOk = false;
   if (APPS_SCRIPT_URL) {
     try {
       const r = await appsScriptCall({ action: 'product', product: p });
-      if (r && r.ok) { catalogRev++; saveStore(); broadcastCatalog(); return res.json({ ok: true, rev: catalogRev }); }
+      sheetOk = !!(r && r.ok);
     } catch (e) {}
   }
-  const i = memProducts.findIndex(x => x.id === p.id);
-  if (i > -1) memProducts[i] = p; else memProducts.unshift(p);
   catalogRev++;
   saveStore();
   broadcastCatalog();
-  res.json({ ok: true, rev: catalogRev });
+  res.json({ ok: true, rev: catalogRev, sheet: sheetOk });
 });
 
 app.delete('/api/products/:id', async (req, res) => {
   const id = req.params.id;
+  // ALWAYS remove from the local mirror + tombstone it, so a cross-device delete
+  // (or a delete that only reached the sheet) is never resurrected by the merge.
+  memProducts = memProducts.filter(x => x.id !== id);
+  if (deletedIds.indexOf(id) < 0) deletedIds.push(id);
   if (APPS_SCRIPT_URL) {
     try {
-      const r = await appsScriptCall({ action: 'deleteProduct', productId: id });
-      if (r && r.ok) { catalogRev++; saveStore(); broadcastCatalog(); return res.json({ ok: true, rev: catalogRev }); }
+      await appsScriptCall({ action: 'deleteProduct', productId: id });
     } catch (e) {}
   }
-  memProducts = memProducts.filter(x => x.id !== id);
   catalogRev++;
   saveStore();
   broadcastCatalog();
