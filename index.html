@@ -3328,13 +3328,7 @@
                   </div>
                   <div class="field" data-f="phone">
                     <label>Mobile Number <span class="req">*</span></label
-                    ><input
-                      id="f-phone"
-                      placeholder="10-digit mobile"
-                      maxlength="10"
-                      inputmode="numeric"
-                      oninput="clearErr('phone')"
-                    />
+                    ><input id="f-phone" type="tel" placeholder="+91 10-digit mobile" maxlength="15" value="+91 " oninput="if(!this.value.startsWith('+91 ')){ this.value = '+91 '; } clearErr('phone')">
                     <p class="err">Enter a valid 10-digit mobile number</p>
                   </div>
                 </div>
@@ -3354,12 +3348,10 @@
                 </div>
                 <div class="field" data-f="address">
                   <label>Full Address <span class="req">*</span></label
-                  ><textarea
-                    id="f-address"
-                    rows="2"
-                    placeholder="House number, street, locality, landmark"
-                    oninput="clearErr('address')"
-                  ></textarea>
+                  ><div style="display:flex; gap:8px;">
+    <textarea id="f-address" rows="2" placeholder="House number, street, locality, landmark" oninput="clearErr('address')" style="flex:1;"></textarea>
+    <button type="button" class="btn btn-ghost" style="padding:0 10px; font-size:1.2rem; cursor:pointer;" onclick="getLiveLocation()" title="Use Live Location">📍</button>
+</div>
                   <p class="err">Please enter your complete address</p>
                 </div>
                 <div class="frow">
@@ -4890,6 +4882,30 @@
         startLiveEvents();
       }
       /* Deep-link: a shared product URL (#product=id) opens that product's modal. */
+      function getLiveLocation() {
+        const adr = document.getElementById("f-address");
+        adr.placeholder = "Fetching location...";
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              try {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                if (data && data.display_name) {
+                  adr.value = data.display_name;
+                  clearErr("address");
+                }
+              } catch (e) {}
+              adr.placeholder = "House number, street, locality, landmark";
+            },
+            (error) => {
+              adr.placeholder = "House number, street, locality, landmark";
+            }
+          );
+        }
+      }
       function handleHash() {
         const m = location.hash.match(/product=([^&]+)/);
         if (m) {
@@ -4935,8 +4951,7 @@
           if (!currentProduct) {
             go("shop", push);
             return;
-          }
-          else renderProductPage();
+          } else renderProductPage();
         }
         if (view === "checkout") renderCheckout();
         if (view === "orders") renderOrders();
@@ -4946,53 +4961,11 @@
           .forEach((a) => a.classList.toggle("active", a.dataset.nav === view));
         closeMenu();
         window.scrollTo({ top: 0, behavior: "smooth" });
-
-        if (push) {
-          history.pushState({ view }, "", "#" + view);
-        }
+        if (push) history.pushState({ view }, "", "#" + view);
       }
-
-      
-      function getLiveLocation() {
-        const adr = document.getElementById("f-address");
-        adr.placeholder = "Fetching location...";
-        if ("geolocation" in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              try {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-                const data = await res.json();
-                if (data && data.display_name) {
-                  adr.value = data.display_name;
-                  clearErr("address");
-                } else {
-                  toast("Could not get address from coordinates", "warn");
-                }
-              } catch (e) {
-                toast("Error fetching address details", "warn");
-              }
-              adr.placeholder = "House number, street, locality, landmark";
-            },
-            (error) => {
-              toast("Location permission denied or unavailable.", "warn");
-              adr.placeholder = "House number, street, locality, landmark";
-            }
-          );
-        } else {
-          toast("Geolocation is not supported by your browser", "warn");
-          adr.placeholder = "House number, street, locality, landmark";
-        }
-      }
-
       window.addEventListener("popstate", (e) => {
-        if (e.state && e.state.view) {
-          go(e.state.view, false);
-        } else {
-          // Fallback if no state
-          go("home", false);
-        }
+        if (e.state && e.state.view) go(e.state.view, false);
+        else go("home", false);
       });
       /* ---- theme ---- */
       function themeIcon() {
@@ -5146,26 +5119,23 @@
         b.classList.toggle("hidden", !show);
         if (show) b.focus();
       }
-            function addImgUrl() {
+      function addImgUrl() {
         const b = document.getElementById("p-img-url");
         const v = b.value.trim();
         if (!v) {
           toggleImgUrl();
           return;
         }
-        
-        // Accept comma separated URLs
         const urls = v.split(",").map(u => u.trim()).filter(Boolean);
         let added = 0;
         for (let u of urls) {
           if (!/^https?:\/\//i.test(u)) {
-            toast("Skipped invalid URL: " + u.substring(0,20) + "...", "warn");
+            toast("Skipped invalid URL", "warn");
             continue;
           }
           formImgs.push(u);
           added++;
         }
-        
         if (added > 0) {
           b.value = "";
           b.classList.add("hidden");
@@ -5560,27 +5530,158 @@
       }
       let curPhoto = 0,
         currentProduct = null;
-            function pmSet(i) {
+      function pmSet(i) {
         curPhoto = i;
         const p = currentProduct;
         if (!p) return;
         const ims = getImages(p);
         const main = document.getElementById("ppMain");
         if (!main) return;
-        
-        // Update main photo
         if (ims.length) {
           main.innerHTML = '<img src="' + esc(ims[i]) + '" alt="' + esc(p.name) + '">';
         } else {
-          main.innerHTML = '<div style="font-size:110px">' + esc(p.emoji || "📦") + '</div>';
+          main.innerHTML = '<div style="font-size:110px">' + esc(p.emoji || "📦") + "</div>";
         }
         const o = off(p);
-        if (o) main.innerHTML += '<span class="off">' + o + '% OFF</span>';
-
-        // Update selected thumbnail highlight
-        document.querySelectorAll('.pp-thumb').forEach((el, idx) => {
-          el.classList.toggle('sel', idx === i);
+        if (o) main.innerHTML += '<span class="off">' + o + "% OFF</span>";
+        document.querySelectorAll(".pp-thumb").forEach((el, idx) => {
+          el.classList.toggle("sel", idx === i);
         });
+      }
+      function renderProductPage() {
+        const p = currentProduct;
+        if (!p) return;
+        document.getElementById("prodCrumb").textContent = p.name;
+        const o = off(p),
+          oos = p.stock <= 0,
+          ims = getImages(p);
+        const rel = products
+          .filter((x) => x.cat === p.cat && x.id !== p.id)
+          .concat(products.filter((x) => x.cat !== p.cat && x.id !== p.id))
+          .slice(0, 8);
+        const thumbs = ims.length
+          ? '<div class="pp-thumbs">' +
+            ims
+              .map(
+                (u, i) =>
+                  '<div class="pp-thumb' +
+                  (i === 0 ? " sel" : "") +
+                  '" onclick="pmSet(' +
+                  i +
+                  ')"><img src="' +
+                  esc(u) +
+                  '" alt="photo ' +
+                  (i + 1) +
+                  '" onerror="this.outerHTML=\'' +
+                  esc(p.emoji || "📷") +
+                  "'\"></div>",
+              )
+              .join("") +
+            "</div>"
+          : "";
+        document.getElementById("productPageBody").innerHTML =
+          '<div class="pp-wrap"><div><div class="pp-main" id="ppMain">' +
+          (ims.length
+            ? '<img src="' + esc(ims[0]) + '" alt="' + esc(p.name) + '">'
+            : '<div style="font-size:110px">' +
+              esc(p.emoji || "📦") +
+              "</div>") +
+          (o ? '<span class="off">' + o + "% OFF</span>" : "") +
+          "</div>" +
+          thumbs +
+          '</div><div class="pp-info"><div class="cat">' +
+          esc(p.cat) +
+          "</div><h1>" +
+          esc(p.name) +
+          '</h1><div class="rating" style="margin:8px 0;align-items:center"><span class="stars">' +
+          stars(p.rating || 5) +
+          '</span> <span class="rate-pill">★ ' +
+          (p.rating || 5).toFixed(1) +
+          '</span> <span class="muted rev">' +
+          (p.reviews || 0) +
+          ' ratings &amp; reviews</span></div><div style="display:flex;align-items:baseline;gap:10px;margin:12px 0"><span style="font-size:32px;font-weight:800">' +
+          fmt(p.price) +
+          "</span>" +
+          (o
+            ? '<span class="muted" style="text-decoration:line-through">' +
+              fmt(p.mrp) +
+              '</span><span class="pill ok">Save ' +
+              o +
+              "%</span>"
+            : "") +
+          '</div><div class="stock ' +
+          (oos ? "out" : p.stock <= 5 ? "low" : "") +
+          '">' +
+          (oos
+            ? "Out of stock"
+            : p.stock <= 5
+              ? "⚡ Hurry! Only " + p.stock + " left"
+              : "✔ In stock &amp; ready to ship") +
+          '</div><p style="font-size:15px;color:var(--muted);margin:14px 0">' +
+          esc(p.desc || "") +
+          '</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-primary" style="flex:1" ' +
+          (oos ? "disabled" : "") +
+          " onclick=\"addToCart('" +
+          p.id +
+          '\')">🛒 Add to Cart</button><button class="btn btn-accent" style="flex:1" ' +
+          (oos ? "disabled" : "") +
+          " onclick=\"buyNow('" +
+          p.id +
+          '\')">⚡ Buy Now</button><button class="btn btn-ghost" style="flex:0 0 auto;min-width:48px" onclick="shareProduct(\'' +
+          p.id +
+          '\')" title="Share product">🔗</button></div><div class="pm-detail"><h4>📋 Product Details</h4><div class="row"><span>SKU / Code</span><b>' +
+          esc(p.id).toUpperCase() +
+          '</b></div><div class="row"><span>Category</span><b>' +
+          esc(p.cat) +
+          '</b></div><div class="row"><span>MRP</span><b>' +
+          fmt(p.mrp) +
+          '</b></div><div class="row"><span>Your Price</span><b>' +
+          fmt(p.price) +
+          '</b></div><div class="row"><span>Discount</span><b>' +
+          o +
+          '% off</b></div><div class="row"><span>Availability</span><b>' +
+          (oos
+            ? "Out of stock"
+            : p.stock <= 5
+              ? "Only " + p.stock + " left"
+              : "In stock") +
+          '</b></div><div class="row"><span>Item count</span><b>' +
+          ims.length +
+          " photo" +
+          (ims.length !== 1 ? "s" : "") +
+          '</b></div></div><div style="margin-top:14px;font-size:13.5px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px"><div>🚚 Free delivery on all orders</div><div>↩️ 7-day easy returns</div><div>📲 UPI &amp; COD accepted</div></div></div></div>' +
+          (rel.length
+            ? '<div class="pp-rel"><div class="sec-head" style="margin-bottom:16px"><h2 style="font-size:22px">Similar Products</h2></div><div class="grid">' +
+              rel.map(productCard).join("") +
+              "</div></div>"
+            : "");
+      }
+      function openProduct(id) {
+        const p = productOf(id);
+        if (!p) return;
+        currentProduct = p;
+        curPhoto = 0;
+        go("product");
+      }
+      function closeModal(id) {
+        const m = document.getElementById(id || "productModal");
+        if (m) m.classList.remove("show");
+      }
+      function copyText(t) {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(t);
+            return;
+          }
+          const ta = document.createElement("textarea");
+          ta.value = t;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        } catch (e) {}
       }
       function shareProduct(id) {
         const p = productOf(id);
