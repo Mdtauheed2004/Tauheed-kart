@@ -3328,7 +3328,7 @@
                   </div>
                   <div class="field" data-f="phone">
                     <label>Mobile Number <span class="req">*</span></label
-                    ><input id="f-phone" type="tel" placeholder="+91 10-digit mobile" maxlength="15" value="+91 " oninput="if(!this.value.startsWith('+91 ')){ this.value = '+91 '; } clearErr('phone')">
+                    ><input id="f-phone" type="tel" placeholder="+91 10-digit mobile" maxlength="15" value="+91 " oninput="let v=this.value; if(!v.startsWith('+91 ')){ v = '+91 ' + v.replace(/[^0-9]/g, ''); } this.value=v; clearErr('phone')">
                     <p class="err">Enter a valid 10-digit mobile number</p>
                   </div>
                 </div>
