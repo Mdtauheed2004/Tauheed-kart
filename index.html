@@ -6439,12 +6439,19 @@
         localStorage.setItem("tk_admin", "1");
         if (token) sessionStorage.setItem("tk_admin_token", token);
         closeModal("adminLogin");
-        await syncCatalog(); // pull latest catalog from server
-        await refreshAdminOrders(token, pass);
-        await syncOrders(); // push any queued local orders
-        startAdminPoll();
+        
+        // INSTANT UI RESPONSE
         toast("Welcome, Admin! 👑", "info");
         go("admin");
+        
+        // SYNC IN BACKGROUND SO IT DOES NOT FREEZE THE DASHBOARD
+        Promise.all([
+          syncCatalog(),
+          refreshAdminOrders(token, pass),
+          syncOrders()
+        ]).then(() => {
+          startAdminPoll();
+        }).catch(()=>{});
       }
       function logoutAdmin() {
         stopAdminPoll();

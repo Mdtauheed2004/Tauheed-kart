@@ -297,19 +297,30 @@ app.post('/api/orders', async (req, res) => {
   res.json({ ok: true, id: order.id, emailed: false });
 });
 
-app.get('/api/orders', async (req, res) => {
-  // Authorize by admin secret (password) OR a live session token (issued at login).
+let lastOrdersFetch = 0;
+let isFetchingOrders = false;
+
+app.get('/api/orders', (req, res) => {
   const token = req.query.token;
   const secretOk = req.query.secret === ADMIN_SECRET;
   const tokenOk = token && adminSessions.has(token);
   if (!secretOk && !tokenOk) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  if (APPS_SCRIPT_URL) {
-    try {
-      const r = await appsScriptGet('action=orders&secret=' + encodeURIComponent(ADMIN_SECRET));
-      if (r && r.orders) return res.json({ orders: r.orders, source: 'gapps' });
-    } catch (e) {}
+  
+  if (APPS_SCRIPT_URL && !isFetchingOrders && Date.now() - lastOrdersFetch > 15000) {
+    isFetchingOrders = true;
+    appsScriptGet('action=orders&secret=' + encodeURIComponent(ADMIN_SECRET)).then(r => {
+      if (r && r.orders) {
+        memOrders = r.orders;
+        saveStore();
+        lastOrdersFetch = Date.now();
+      }
+      isFetchingOrders = false;
+    }).catch(e => {
+      isFetchingOrders = false;
+    });
   }
-  res.json({ orders: memOrders, source: 'local' });
+  
+  res.json({ orders: memOrders, source: APPS_SCRIPT_URL ? 'gapps' : 'local' });
 });
 
 // ---- Root health check (Render uses this) ----
