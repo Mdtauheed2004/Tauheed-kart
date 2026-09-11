@@ -4895,8 +4895,8 @@
                 go(viewMatch[1], false);
                 history.replaceState({ view: viewMatch[1] }, "", initHash);
             } else {
-                go("shop", false);
-                history.replaceState({ view: 'shop' }, "", "#shop");
+                go("home", false);
+                history.replaceState({ view: 'home' }, "", "#home");
             }
         }
         startLiveEvents();
@@ -5262,8 +5262,7 @@
             .join("");
         const featured = products
           .filter((p) => p.featured)
-          .concat(products.filter((p) => !p.featured))
-          .slice(0, 8);
+          .concat(products.filter((p) => !p.featured)); // show all products
         $("#featuredGrid").innerHTML = featured.length
           ? featured.map(productCard).join("")
           : '<div class="cart-empty" style="grid-column:1/-1"><div class="em">🛒</div><h3>No products yet</h3><p>Add products via the Admin panel.</p></div>';
