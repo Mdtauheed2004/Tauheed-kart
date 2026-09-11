@@ -4874,7 +4874,8 @@
 
       async function bootstrap() {
         const initHash = location.hash;
-        await syncTick();
+        
+        // INSTANT RENDER (using localStorage cache) before waiting for network
         updateBell();
         updateCartCount();
         updateAuthUI();
@@ -4895,10 +4896,23 @@
                 go(viewMatch[1], false);
                 history.replaceState({ view: viewMatch[1] }, "", initHash);
             } else {
-                go("home", false);
-                history.replaceState({ view: 'home' }, "", "#home");
+                go("shop", false);
+                history.replaceState({ view: 'shop' }, "", "#shop");
             }
         }
+        
+        // NOW fetch fresh data in background
+        syncTick().then(() => {
+           // If they landed on a product link but we didn't have it in cache, try opening it now
+           if (!routed && prodMatch) {
+               const id = decodeURIComponent(prodMatch[1]);
+               if (productOf(id)) {
+                   openProduct(id, false);
+                   history.replaceState({ view: 'product', extraHash: '=' + id }, "", initHash);
+               }
+           }
+        }).catch(()=>{});
+        
         startLiveEvents();
       }
       /* Deep-link: a shared product URL (#product=id) opens that product's modal. */

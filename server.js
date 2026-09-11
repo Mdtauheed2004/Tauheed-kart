@@ -197,29 +197,44 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // ---- API: products ----
-app.get('/api/products', async (req, res) => {
-  let products = memProducts, source = 'local';
-  if (APPS_SCRIPT_URL) {
-    try {
-      const r = await appsScriptGet('action=products');
+let lastAppsScriptFetch = 0;
+let isFetchingAppsScript = false;
+
+app.get('/api/products', (req, res) => {
+  // We return memProducts instantly so the website never blocks on loading!
+  // But we trigger a background fetch to Google Sheets if it's been > 15s.
+  if (APPS_SCRIPT_URL && !isFetchingAppsScript && Date.now() - lastAppsScriptFetch > 15000) {
+    isFetchingAppsScript = true;
+    appsScriptGet('action=products').then(r => {
       if (r && Array.isArray(r.products)) {
-        // Apps Script is the cross-device source of truth, but we NEVER drop a
-        // product that this server already saved in store.json yet hasn't reached
-        // the sheet (e.g. the sheet write lagged or failed). We merge them in by
-        // id, so an admin-added product ALWAYS survives a refresh.
         const sheetIds = new Set(r.products.map(p => String(p.id)));
         const gone = new Set((deletedIds || []).map(x => String(x)));
-        // Keep ONLY local products that (a) aren't already in the sheet and
-        // (b) weren't deliberately deleted. Prevents both the "lost on refresh"
-        // bug and any "resurrect after delete" bug.
         const localOnly = (memProducts || []).filter(p => !sheetIds.has(String(p.id)) && !gone.has(String(p.id)));
-        products = r.products.slice();
-        localOnly.forEach(p => products.unshift(p));
-        source = 'gapps';
+        const merged = r.products.slice();
+        localOnly.forEach(p => merged.unshift(p));
+        
+        let changed = false;
+        if (merged.length !== memProducts.length) changed = true;
+        else if (merged.map(p=>p.id).join(',') !== memProducts.map(p=>p.id).join(',')) changed = true;
+
+        memProducts = merged;
+        lastAppsScriptFetch = Date.now();
+        isFetchingAppsScript = false;
+        
+        if (changed) {
+            catalogRev++;
+            saveStore();
+            broadcastCatalog();
+        }
+      } else {
+         isFetchingAppsScript = false;
       }
-    } catch (e) {}
+    }).catch(e => {
+      isFetchingAppsScript = false;
+    });
   }
-  res.json({ products, source, rev: catalogRev });
+  
+  res.json({ products: memProducts, source: APPS_SCRIPT_URL ? 'gapps' : 'local', rev: catalogRev });
 });
 
 app.post('/api/products', async (req, res) => {
