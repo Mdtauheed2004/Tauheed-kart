@@ -4873,12 +4873,32 @@
       }
 
       async function bootstrap() {
+        const initHash = location.hash;
         await syncTick();
         updateBell();
         updateCartCount();
-        go("home");
         updateAuthUI();
-        handleHash();
+        
+        let routed = false;
+        const prodMatch = initHash.match(/product=([^&]+)/);
+        if (prodMatch) {
+            const id = decodeURIComponent(prodMatch[1]);
+            if (productOf(id)) {
+                openProduct(id, false);
+                history.replaceState({ view: 'product', extraHash: '=' + id }, "", initHash);
+                routed = true;
+            }
+        }
+        if (!routed) {
+            const viewMatch = initHash.match(/^#(home|shop|checkout|orders|admin)$/);
+            if (viewMatch) {
+                go(viewMatch[1], false);
+                history.replaceState({ view: viewMatch[1] }, "", initHash);
+            } else {
+                go("home", false);
+                history.replaceState({ view: 'home' }, "", "#home");
+            }
+        }
         startLiveEvents();
       }
       /* Deep-link: a shared product URL (#product=id) opens that product's modal. */
@@ -4939,7 +4959,7 @@
         "orders",
         "admin",
       ];
-      function go(view, push = true) {
+      function go(view, push = true, extraHash = "") {
         if (view !== "checkout") buyNowItem = null;
         VIEWS.forEach((v) => {
           const el = document.getElementById("view-" + v);
@@ -4961,11 +4981,18 @@
           .forEach((a) => a.classList.toggle("active", a.dataset.nav === view));
         closeMenu();
         window.scrollTo({ top: 0, behavior: "smooth" });
-        if (push) history.pushState({ view }, "", "#" + view);
+        if (push) history.pushState({ view, extraHash }, "", "#" + view + extraHash);
       }
       window.addEventListener("popstate", (e) => {
-        if (e.state && e.state.view) go(e.state.view, false);
-        else go("home", false);
+        if (e.state && e.state.view) {
+           if (e.state.view === "product" && e.state.extraHash) {
+              const id = e.state.extraHash.replace("=", "");
+              openProduct(id, false);
+           } else {
+              go(e.state.view, false);
+           }
+        }
+        else handleHash();
       });
       /* ---- theme ---- */
       function themeIcon() {
@@ -5656,12 +5683,12 @@
               "</div></div>"
             : "");
       }
-      function openProduct(id) {
+      function openProduct(id, push = true) {
         const p = productOf(id);
         if (!p) return;
         currentProduct = p;
         curPhoto = 0;
-        go("product");
+        go("product", push, "=" + id);
       }
       function closeModal(id) {
         const m = document.getElementById(id || "productModal");
