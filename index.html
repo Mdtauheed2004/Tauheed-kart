@@ -3491,7 +3491,7 @@
                 <span>Delivery</span><span class="v" id="sumShip">₹0</span>
               </div>
               <div class="li s" id="upiDiscRow">
-                <span>UPI 10% Off</span
+                <span>UPI 5% Off</span
                 ><span class="v" id="sumUpiDisc">− ₹0</span>
               </div>
               <div class="grand">
@@ -4110,7 +4110,7 @@
           fmt(o.sub || 0) +
           "\n🚚 Delivery: " +
           (o.ship ? "₹" + o.ship : "FREE") +
-          (o.upiDisc ? "\n📲 UPI 10% Off: − " + fmt(o.upiDisc) : "") +
+          (o.upiDisc ? "\n📲 UPI 5% Off: − " + fmt(o.upiDisc) : "") +
           "\n💵 Total: " +
           fmt(o.total || 0) +
           "\n💳 Payment: " +
@@ -5856,7 +5856,7 @@
         const li = checkoutList();
         const total = li.reduce((s, c) => s + priceOf(c.id) * c.qty, 0);
         const ship = total >= FREE_SHIP ? 0 : SHIP_FEE;
-        const upiDisc = payment === "upi" ? Math.round(total * 0.1) : 0;
+        const upiDisc = payment === "upi" ? Math.round(total * 0.05) : 0;
         const grand = Math.max(0, total + ship - upiDisc);
         return { total, ship, upiDisc, grand };
       }
@@ -6106,7 +6106,7 @@
           o.items.length +
           "</b></div>" +
           (o.upiDisc
-            ? '<div class="li"><span>UPI 10% Off</span><b>− ₹' +
+            ? '<div class="li"><span>UPI 5% Off</span><b>− ₹' +
               o.upiDisc +
               "</b></div>"
             : "") +
@@ -6302,7 +6302,7 @@
           (o.ship ? "₹" + o.ship : "FREE") +
           "</b></div>" +
           (o.upiDisc
-            ? '<div class="li" style="display:flex;justify-content:space-between"><span class="muted">UPI 10% Off</span><b>− ₹' +
+            ? '<div class="li" style="display:flex;justify-content:space-between"><span class="muted">UPI 5% Off</span><b>− ₹' +
               o.upiDisc +
               "</b></div>"
             : "") +
@@ -6612,6 +6612,16 @@
           notifListHTML(true) +
           "</div></div>" +
           "<div>" +
+          '<div class="panel" style="margin-bottom:20px; background:var(--success-soft); border-color:#86efac;">' +
+          '<h3 style="color:var(--success);"><span class="ic">📱</span> UPI Payments</h3>' +
+          '<div class="order-grid">' +
+          (paid.length ? paid.map(o => 
+            '<div class="order-tile" style="background:#fff;" onclick="orderDetail(\'' + o.id + '\')">' +
+            '<div class="o">' + o.id + '</div>' +
+            '<div class="d">' + (o.customer ? esc(o.customer.name) : 'User') + ' • ' + (o.customer ? esc(o.customer.phone) : '') + '</div>' +
+            '<div class="amt">' + fmt(o.total) + '</div></div>'
+          ).join("") : '<div class="blank" style="background:transparent;border:none;">No UPI orders yet</div>') +
+          '</div></div>' +
           '<div class="panel"><h3>📄 Latest Orders</h3><div class="order-grid">' +
           orders
             .slice(0, 6)
@@ -6997,7 +7007,7 @@
           (o.ship ? "₹" + o.ship : "FREE") +
           "</b></div>" +
           (o.upiDisc
-            ? '<div class="li" style="display:flex;justify-content:space-between"><span class="muted">UPI 10% Off</span><b>− ₹' +
+            ? '<div class="li" style="display:flex;justify-content:space-between"><span class="muted">UPI 5% Off</span><b>− ₹' +
               o.upiDisc +
               "</b></div>"
             : "") +
